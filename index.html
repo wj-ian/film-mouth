@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>🎹 MP3 → 钢琴旋律 (稳定版)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      background: linear-gradient(145deg, #1e2b3a 0%, #0f1a26 100%);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: 'Segoe UI', 'Inter', system-ui, sans-serif;
+      padding: 20px;
+    }
+    .card {
+      background: rgba(22, 34, 45, 0.9);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 215, 150, 0.2);
+      border-radius: 40px;
+      box-shadow: 0 25px 40px -10px rgba(0,0,0,0.6);
+      padding: 32px 28px;
+      max-width: 680px;
+      width: 100%;
+      color: #f0e9e1;
+    }
+    h1 {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 500;
+      font-size: 2.1rem;
+      margin-bottom: 8px;
+      color: #fadfad;
+    }
+    .subtitle {
+      font-size: 0.95rem;
+      margin-bottom: 28px;
+      opacity: 0.8;
+      border-left: 4px solid #d4af7a;
+      padding-left: 16px;
+    }
+    .upload-area {
+      background: rgba(10, 18, 25, 0.7);
+      border: 2px dashed #b9a58b;
+      border-radius: 28px;
+      padding: 28px 18px;
+      text-align: center;
+      cursor: pointer;
+      margin-bottom: 24px;
+    }
+    .upload-area:hover { border-color: #ecd59e; background: rgba(20,30,40,0.8); }
+    .upload-icon { font-size: 48px; margin-bottom: 8px; }
+    .file-name { font-weight: 500; margin-top: 10px; color: #cfc3b2; word-break: break-all; }
+    input[type="file"] { display: none; }
+    .btn {
+      background: #2f404f;
+      border: none;
+      border-radius: 60px;
+      padding: 14px 24px;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #f3e7d9;
+      box-shadow: 0 8px 0 #121a22;
+      cursor: pointer;
+      width: 100%;
+      transition: all 0.08s;
+      margin-bottom: 18px;
+    }
+    .btn:active { transform: translateY(6px); box-shadow: 0 2px 0 #121a22; }
+    .btn:disabled { opacity: 0.5; transform: none; box-shadow: 0 6px 0 #121a22; pointer-events: none; }
+    .progress-container { background: #1c2936; border-radius: 40px; height: 14px; margin: 16px 0; overflow: hidden; }
+    .progress-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #c9aa7b, #e7cba5); border-radius: 40px; transition: width 0.15s; }
+    .status-text { min-height: 32px; margin: 8px 0; color: #b9ad9c; }
+    .result-area { background: #16222b; border-radius: 24px; padding: 20px; margin-top: 16px; display: none; }
+    .download-btn { background: #4e6e5e; box-shadow: 0 6px 0 #2c3e35; width: auto; flex:1; margin-bottom:0; }
+    audio { width: 100%; margin-top: 15px; border-radius: 30px; background: #1e2e3b; height: 42px; }
+    .badge { background: #2b404e; padding: 4px 12px; border-radius: 50px; font-size: 0.8rem; }
+    .footnote { font-size: 0.8rem; margin-top: 18px; text-align: center; opacity: 0.65; }
+  </style>
+  <!-- 优先加载 pitchfinder (稳定CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/pitchfinder@2.3.2/dist/pitchfinder.min.js"></script>
+  <script>
+    // 如果CDN失败，内置简易自相关检测器作为回退
+    window.pitchfinderFallback = (function(){
+      // 简单的自相关音高检测 (回退用)
+      function autoCorrelate(buf, sampleRate) {
+        const SIZE = buf.length;
+        let rms = 0;
+        for (let i=0;i<SIZE;i++) rms += buf[i]*buf[i];
+        rms = Math.sqrt(rms/SIZE);
+        if (rms < 0.01) return -1;
+        
+        let r1 = 0, r2 = SIZE-1;
+        const threshold = 0.2;
+        for (let i=0;i<SIZE;i++) if (Math.abs(buf[i])<threshold) { r1=i; break; }
+        for (let i=SIZE-1;i>0;i--) if (Math.abs(buf[i])<threshold) { r2=i; break; }
+        const trimSize = r2-r1;
+        if (trimSize < SIZE/4) return -1;
+        
+        const c = new Array(trimSize).fill(0);
+        for (let i=0;i<trimSize;i++) {
+          for (let j=0;j<trimSize-i;j++) {
+            c[i] += buf[r1+j] * buf[r1+j+i];
+          }
+        }
+        let d=0; while (c[d] > c[d+1]) d++;
+        let maxval=-1, maxpos=-1;
+        for (let i=d;i<trimSize;i++) {
+          if (c[i] > maxval) { maxval = c[i]; maxpos = i; }
+        }
+        let T0 = maxpos;
+        const x1=c[T0-1], x2=c[T0], x3=c[T0+1];
+        const a = (x1 + x3 - 2*x2)/2;
+        const b = (x3 - x1)/2;
+        if (a) T0 -= b/(2*a);
+        return sampleRate / T0;
+      }
+      
+      return {
+        YIN: function(config) {
+          const sampleRate = config.sampleRate;
+          const threshold = config.threshold || 0.15;
+          return function(buffer) {
+            // 简单的YIN风格差分函数
+            const yinBuffer = new Float32Array(buffer.length/2);
+            let diff, delta;
+            for (let tau=0; tau<yinBuffer.length; tau++) {
+              yinBuffer[tau] = 0;
+              for (let j=0; j<yinBuffer.length; j++) {
+                diff = buffer[j] - buffer[j+tau];
+                yinBuffer[tau] += diff*diff;
+              }
+            }
+            let tau = 2;
+            while (tau < yinBuffer.length && yinBuffer[tau] >= yinBuffer[tau-1]) tau++;
+            if (tau === yinBuffer.length) {
+              const freq = autoCorrelate(buffer, sampleRate);
+              return freq > 0 ? freq : 0;
+            }
+            while (tau+1 < yinBuffer.length && yinBuffer[tau] > yinBuffer[tau+1]) tau++;
+            let turning = tau;
+            if (yinBuffer[turning] < threshold) {
+              const better = (turning>0) ? turning-1 : turning;
+              return sampleRate / better;
+            }
+            const freq = autoCorrelate(buffer, sampleRate);
+            return freq > 0 ? freq : 0;
+          };
+        }
+      };
+    })();
+  </script>
+</head>
+<body>
+<div class="card">
+  <h1><span>🎼</span> 钢琴幻境</h1>
+  <div class="subtitle">上传 MP3 · 提取旋律 · 钢琴重奏 · 下载</div>
+
+  <div class="upload-area" id="uploadArea">
+    <div class="upload-icon">🎧⬆️</div>
+    <div>点击或拖拽 MP3 文件</div>
+    <div class="file-name" id="fileNameDisplay">未选择文件</div>
+  </div>
+  <input type="file" id="fileInput" accept="audio/mp3, audio/mpeg, .mp3">
+
+  <button class="btn" id="convertBtn" disabled>
+    <span>✨</span> 转为钢琴旋律 <span>✨</span>
+  </button>
+
+  <div class="progress-container">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+  <div class="status-text" id="statusMessage">
+    <span>⚡</span> 等待上传文件...
+  </div>
+
+  <div class="result-area" id="resultArea">
+    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+      <span>🎹 钢琴旋律已生成</span>
+      <span class="badge" id="noteCountBadge">0 音符</span>
+    </div>
+    <div style="display: flex; gap: 12px;">
+      <button class="btn download-btn" id="downloadBtn">⬇️ 下载钢琴版 (.wav)</button>
+    </div>
+    <audio id="previewAudio" controls></audio>
+  </div>
+  <div class="footnote">🎶 纯浏览器转换 · 不上传服务器</div>
+</div>
+
+<script>
+  (function(){
+    // 确保 pitchfinder 存在 (优先使用CDN，否则回退)
+    const Pitchfinder = (typeof window.pitchfinder !== 'undefined') ? window.pitchfinder : window.pitchfinderFallback;
+    
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const convertBtn = document.getElementById('convertBtn');
+    const progressBar = document.getElementById('progressBar');
+    const statusMessage = document.getElementById('statusMessage');
+    const resultArea = document.getElementById('resultArea');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const previewAudio = document.getElementById('previewAudio');
+    const noteCountBadge = document.getElementById('noteCountBadge');
+
+    let audioBuffer = null;
+    let pianoAudioBuffer = null;
+    let isProcessing = false;
+    let currentFileName = '';
+    let audioCtx = null;
+
+    function initAudioContext() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function setStatus(text, isError = false) {
+      statusMessage.innerHTML = `<span>${isError ? '❌' : '🔊'}</span> ${text}`;
+      statusMessage.style.color = isError ? '#f3a39b' : '#b9ad9c';
+    }
+
+    function setProgress(percent) {
+      progressBar.style.width = Math.min(100, Math.max(0, percent)) + '%';
+    }
+
+    function handleFileSelect(file) {
+      if (!file) return;
+      if (!file.name.toLowerCase().endsWith('.mp3') && file.type !== 'audio/mpeg') {
+        setStatus('请选择 MP3 文件', true);
+        return;
+      }
+      currentFileName = file.name;
+      fileNameDisplay.textContent = `📁 ${file.name}`;
+      convertBtn.disabled = false;
+      setStatus(`已加载: ${file.name} · 点击转换`);
+      setProgress(0);
+      pianoAudioBuffer = null;
+      resultArea.style.display = 'none';
+      previewAudio.src = '';
+    }
+
+    uploadArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) handleFileSelect(e.target.files[0]);
+    });
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#ecd59e'; });
+    uploadArea.addEventListener('dragleave', () => { uploadArea.style.borderColor = '#b9a58b'; });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.style.borderColor = '#b9a58b';
+      const file = e.dataTransfer.files[0];
+      if (file) { handleFileSelect(file); fileInput.files = e.dataTransfer.files; }
+    });
+
+    async function decodeMP3(file) {
+      const ctx = initAudioContext();
+      const arrayBuffer = await file.arrayBuffer();
+      setStatus('解码音频中...'); setProgress(15);
+      const decoded = await ctx.decodeAudioData(arrayBuffer);
+      setProgress(30);
+      return decoded;
+    }
+
+    function detectPitchAndNotes(buffer) {
+      setStatus('🎯 音高检测中...'); setProgress(35);
+      const rawData = buffer.getChannelData(0);
+      const sampleRate = buffer.sampleRate;
+      
+      const yinDetector = Pitchfinder.YIN({ sampleRate, threshold: 0.15 });
+      const frameSize = 2048, hopSize = 512;
+      const minNoteDuration = 0.06, minSilenceDuration = 0.03;
+      
+      const numFrames = Math.floor((rawData.length - frameSize) / hopSize) + 1;
+      const frequencies = [], frameTimes = [], rmsValues = [];
+      
+      for (let i = 0; i < numFrames; i++) {
+        const start = i * hopSize;
+        const frame = rawData.slice(start, start + frameSize);
+        let sum = 0;
+        for (let j=0;j<frame.length;j++) sum += frame[j]*frame[j];
+        const rms = Math.sqrt(sum/frame.length);
+        rmsValues.push(rms);
+        
+        let freq = yinDetector(frame);
+        if (freq && freq > 65 && freq < 2100) frequencies.push(freq);
+        else frequencies.push(0);
+        frameTimes.push(start / sampleRate);
+      }
+      
+      setProgress(55); setStatus('✂️ 分割音符...');
+      const maxRms = Math.max(...rmsValues, 0.0001);
+      const silenceThresh = maxRms * 0.015;
+      const freqToMidi = (f) => f>0 ? Math.round(12 * Math.log2(f/440) + 69) : -1;
+      
+      const notes = [];
+      let noteOn = false, currentMidi = -1, noteStartTime = 0, maxAmpInNote = 0;
+      
+      for (let i=0; i<numFrames; i++) {
+        const freq = frequencies[i], time = frameTimes[i], rms = rmsValues[i];
+        const isSilent = rms < silenceThresh;
+        let midi = (!isSilent && freq>0) ? freqToMidi(freq) : -1;
+        
+        if (!noteOn) {
+          if (midi !== -1) {
+            noteOn = true; currentMidi = midi; noteStartTime = time; maxAmpInNote = rms;
+          }
+        } else {
+          const midiChanged = (midi !== -1 && midi !== currentMidi);
+          const longSilence = isSilent && (time - noteStartTime) > minSilenceDuration;
+          if (rms > maxAmpInNote) maxAmpInNote = rms;
+          
+          if (longSilence || midiChanged) {
+            let endTime = time;
+            if (midiChanged && !isSilent) endTime = Math.max(noteStartTime+0.02, time-0.01);
+            const duration = endTime - noteStartTime;
+            if (duration >= minNoteDuration && currentMidi>=21 && currentMidi<=108) {
+              const velocity = Math.min(127, Math.floor(40 + 60 * (maxAmpInNote/maxRms)));
+              notes.push({ midi: currentMidi, startTime: noteStartTime, duration, velocity });
+            }
+            if (midiChanged && !isSilent) {
+              noteOn = true; currentMidi = midi; noteStartTime = time; maxAmpInNote = rms;
+            } else { noteOn = false; }
+          }
+        }
+      }
+      if (noteOn) {
+        const endTime = frameTimes[numFrames-1] + hopSize/sampleRate;
+        const duration = endTime - noteStartTime;
+        if (duration >= minNoteDuration && currentMidi>=21 && currentMidi<=108) {
+          const velocity = Math.min(127, Math.floor(40 + 60 * (maxAmpInNote/maxRms)));
+          notes.push({ midi: currentMidi, startTime: noteStartTime, duration, velocity });
+        }
+      }
+      
+      setProgress(70); setStatus(`🎶 检测到 ${notes.length} 个音符`);
+      return { notes, totalDuration: buffer.duration };
+    }
+
+    function renderPianoMelody(notes, totalDuration, sampleRate=44100) {
+      setStatus('🎹 合成钢琴旋律...'); setProgress(80);
+      const offlineCtx = new OfflineAudioContext({ numberOfChannels:2, length: Math.ceil(totalDuration*sampleRate)+sampleRate*0.5, sampleRate });
+      const masterGain = offlineCtx.createGain(); masterGain.gain.value = 0.9;
+      masterGain.connect(offlineCtx.destination);
+      
+      const reverb = offlineCtx.createConvolver();
+      const irLength = sampleRate * 1.2;
+      const irBuffer = offlineCtx.createBuffer(2, irLength, sampleRate);
+      for (let ch=0; ch<2; ch++) {
+        const data = irBuffer.getChannelData(ch);
+        for (let i=0; i<irLength; i++) data[i] = (Math.random()*2-1) * Math.exp(-i/sampleRate*2.5);
+      }
+      reverb.buffer = irBuffer;
+      const dryGain = offlineCtx.createGain(); dryGain.gain.value = 0.7;
+      const wetGain = offlineCtx.createGain(); wetGain.gain.value = 0.35;
+      dryGain.connect(masterGain); wetGain.connect(masterGain); reverb.connect(wetGain);
+      
+      const createPianoVoice = (midi, start, duration, velocity) => {
+        const freq = 440 * Math.pow(2, (midi-69)/12);
+        const velNorm = velocity/127;
+        const noteGain = offlineCtx.createGain();
+        noteGain.gain.setValueAtTime(0, start);
+        noteGain.gain.linearRampToValueAtTime(0.45*velNorm, start+0.005);
+        noteGain.gain.linearRampToValueAtTime(0.18*velNorm, start+0.2);
+        noteGain.gain.setValueAtTime(0.18*velNorm, start+duration);
+        noteGain.gain.linearRampToValueAtTime(0, start+duration+0.1);
+        
+        const osc1 = offlineCtx.createOscillator(); osc1.type='triangle'; osc1.frequency.value=freq;
+        const osc2 = offlineCtx.createOscillator(); osc2.type='sine'; osc2.frequency.value=freq*2;
+        const oscGain1 = offlineCtx.createGain(); oscGain1.gain.value=0.8;
+        const oscGain2 = offlineCtx.createGain(); oscGain2.gain.value=0.25*velNorm;
+        const filter = offlineCtx.createBiquadFilter(); filter.type='lowpass'; filter.frequency.value=3500+midi*50;
+        
+        osc1.connect(oscGain1); osc2.connect(oscGain2);
+        oscGain1.connect(filter); oscGain2.connect(filter);
+        filter.connect(noteGain);
+        noteGain.connect(dryGain); noteGain.connect(reverb);
+        
+        osc1.start(start); osc2.start(start);
+        osc1.stop(start+duration+0.15); osc2.stop(start+duration+0.15);
+      };
+      
+      notes.forEach(n => createPianoVoice(n.midi, n.startTime, n.duration, n.velocity));
+      setProgress(90); setStatus('🎼 离线渲染中...');
+      return offlineCtx.startRendering();
+    }
+
+    function audioBufferToWav(buffer) {
+      const numChannels = buffer.numberOfChannels, sampleRate = buffer.sampleRate;
+      const bitDepth = 16, bytesPerSample = bitDepth/8, blockAlign = numChannels * bytesPerSample;
+      const dataLength = buffer.length * blockAlign;
+      const bufferLength = 44 + dataLength;
+      const arrayBuffer = new ArrayBuffer(bufferLength);
+      const view = new DataView(arrayBuffer);
+      
+      const writeString = (v, off, str) => { for(let i=0;i<str.length;i++) v.setUint8(off+i, str.charCodeAt(i)); };
+      writeString(view, 0, 'RIFF'); view.setUint32(4, 36+dataLength, true);
+      writeString(view, 8, 'WAVE'); writeString(view, 12, 'fmt ');
+      view.setUint32(16, 16, true); view.setUint16(20, 1, true);
+      view.setUint16(22, numChannels, true); view.setUint32(24, sampleRate, true);
+      view.setUint32(28, sampleRate*blockAlign, true); view.setUint16(32, blockAlign, true);
+      view.setUint16(34, bitDepth, true); writeString(view, 36, 'data');
+      view.setUint32(40, dataLength, true);
+      
+      let offset = 44;
+      const channelData = [];
+      for (let c=0; c<numChannels; c++) channelData.push(buffer.getChannelData(c));
+      for (let i=0; i<buffer.length; i++) {
+        for (let c=0; c<numChannels; c++) {
+          let sample = Math.max(-1, Math.min(1, channelData[c][i]));
+          view.setInt16(offset, sample<0 ? sample*0x8000 : sample*0x7FFF, true);
+          offset += 2;
+        }
+      }
+      return new Blob([arrayBuffer], { type: 'audio/wav' });
+    }
+
+    async function convertToPiano() {
+      if (!fileInput.files[0] || isProcessing) return;
+      const file = fileInput.files[0];
+      isProcessing = true; convertBtn.disabled = true;
+      resultArea.style.display = 'none'; setProgress(5);
+      try {
+        audioBuffer = await decodeMP3(file);
+        const { notes, totalDuration } = detectPitchAndNotes(audioBuffer);
+        if (notes.length === 0) throw new Error('未检测到有效旋律，请尝试清晰的人声或独奏录音。');
+        noteCountBadge.textContent = `${notes.length} 音符`;
+        pianoAudioBuffer = await renderPianoMelody(notes, totalDuration);
+        setProgress(100); setStatus(`✅ 转换完成！${notes.length} 个钢琴音符`);
+        const wavBlob = audioBufferToWav(pianoAudioBuffer);
+        const audioUrl = URL.createObjectURL(wavBlob);
+        previewAudio.src = audioUrl;
+        downloadBtn.onclick = () => {
+          const a = document.createElement('a');
+          a.href = audioUrl;
+          a.download = `piano_${currentFileName.replace(/\.mp3$/i,'')||'melody'}.wav`;
+          a.click();
+        };
+        resultArea.style.display = 'block';
+      } catch(e) {
+        setStatus(`错误: ${e.message}`, true); setProgress(0);
+      } finally {
+        isProcessing = false; convertBtn.disabled = false;
+      }
+    }
+
+    convertBtn.addEventListener('click', convertToPiano);
+    document.body.addEventListener('click', () => { if(audioCtx?.state==='suspended') audioCtx.resume(); });
+    setStatus('🎧 上传 MP3 开始');
+  })();
+</script>
+</body>
+</html>
