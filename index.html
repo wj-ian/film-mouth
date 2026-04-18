@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>音画同步·真人动态 | 对口型+吉他左右手（MP3全支持+轻松拖拽）</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(145deg, #1a2a3a 0%, #0f1a24 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        .app-container {
+            max-width: 1500px;
+            width: 100%;
+            background: rgba(30, 40, 50, 0.7);
+            backdrop-filter: blur(3px);
+            border-radius: 2rem;
+            padding: 1.5rem;
+            box-shadow: 0 20px 35px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 1.7rem;
+            margin: 0 0 0.5rem 0;
+            color: #FFE6C7;
+            text-shadow: 0 2px 5px #00000030;
+        }
+
+        .sub {
+            text-align: center;
+            color: #c0cfde;
+            font-size: 0.85rem;
+            margin-bottom: 1.2rem;
+            border-bottom: 1px dashed #5f7f9e;
+            display: inline-block;
+            width: auto;
+            margin-left: auto;
+            margin-right: auto;
+            padding-bottom: 5px;
+        }
+
+        .main-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .canvas-area {
+            flex: 2;
+            min-width: 480px;
+            background: #00000030;
+            border-radius: 28px;
+            padding: 12px;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+
+        .canvas-wrapper {
+            background: #1e2a32;
+            border-radius: 24px;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            border: 2px solid #ffcf9a;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: grab;
+            background: #2c3e2f;
+            border-radius: 20px;
+        }
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        .controls {
+            flex: 1;
+            min-width: 300px;
+            background: #1e2b32c9;
+            border-radius: 1.8rem;
+            padding: 1.2rem;
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .file-group {
+            background: #0f1a1f;
+            padding: 12px 15px;
+            border-radius: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            border-left: 5px solid #f7b05e;
+        }
+
+        .file-label {
+            font-weight: bold;
+            color: #ffddb0;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="file"] {
+            background: #2c3e40;
+            color: white;
+            border-radius: 30px;
+            padding: 8px 12px;
+            border: none;
+            font-size: 0.8rem;
+        }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 5px 0;
+        }
+
+        button {
+            background: #e07c3c;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 60px;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: 0.2s;
+            box-shadow: 0 2px 5px black;
+            font-size: 0.8rem;
+            flex: 1;
+        }
+
+        button.secondary {
+            background: #2c5a6e;
+        }
+
+        button.active-mode {
+            background: #d94f1a;
+            box-shadow: 0 0 8px #ff884d;
+            border: 1px solid #ffbc7a;
+        }
+
+        button:hover {
+            transform: scale(0.97);
+            filter: brightness(1.05);
+        }
+
+        .status {
+            background: #010d13aa;
+            border-radius: 28px;
+            padding: 8px 14px;
+            font-size: 0.75rem;
+            color: #e2e9f0;
+            font-family: monospace;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #14262e;
+            padding: 8px 15px;
+            border-radius: 60px;
+            cursor: pointer;
+        }
+
+        .rhythm-badge {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .footer-note {
+            font-size: 0.7rem;
+            text-align: center;
+            color: #aac8e0;
+            margin-top: 12px;
+        }
+
+        .drag-tip {
+            background: #1e2a2f;
+            border-radius: 20px;
+            padding: 6px 12px;
+            font-size: 0.7rem;
+            color: #ffcf9a;
+            text-align: center;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <h1>🎤 音画幻灵 · 双吉他手 🎸</h1>
+    <div style="text-align:center"><span class="sub">MP3/WAV/OGG全支持 | 嘴巴+左手(按弦)+右手(拨弦) 轻松拖拽 | 实时对口型+节奏弹奏</span></div>
+    <div class="main-panel">
+        <div class="canvas-area">
+            <div class="canvas-wrapper">
+                <canvas id="mainCanvas" width="800" height="550" style="width:100%; height:auto; aspect-ratio:800/550"></canvas>
+            </div>
+            <div class="drag-tip">
+                ✨ <strong>轻松拖拽</strong>：直接按住画布上的 👄 / 🤚(左手) / ✋(右手) 图标（周围半透明圆环区域），任意滑动即可微调位置！<br>
+                💡 如果看不到标记，上传图片后会自动生成；也可点击下方按钮手动添加。
+            </div>
+            <div class="status" id="statusMsg">
+                📌 操作：上传图片 → 上传MP3音乐 → 勾选“持有吉他” → 播放
+            </div>
+        </div>
+        <div class="controls">
+            <div class="file-group">
+                <div class="file-label">🖼️ 上传人物图片 (自动完整显示)</div>
+                <input type="file" id="imageUpload" accept="image/jpeg,image/png,image/jpg">
+                <div class="file-label">🎵 上传音乐 (MP3 / WAV / OGG)</div>
+                <input type="file" id="audioUpload" accept="audio/*">
+                <div class="status" style="font-size:0.7rem">🎧 若MP3无法解码，可尝试使用本页面内置的【生成测试音乐】功能</div>
+                <button id="generateTestAudioBtn" style="background:#4a6a7a; margin-top:5px;">🎵 生成测试音乐(节拍器)</button>
+            </div>
+
+            <div class="btn-group">
+                <button id="setMouthBtn" class="secondary">👄 设置嘴巴</button>
+                <button id="setLeftHandBtn" class="secondary">🤚 左手(按弦)</button>
+                <button id="setRightHandBtn" class="secondary">✋ 右手(拨弦)</button>
+            </div>
+
+            <label class="checkbox-label">
+                <input type="checkbox" id="hasGuitarCheckbox" checked> 🎸 人物拿着吉他 (启用弹拨动画)
+            </label>
+
+            <div class="btn-group">
+                <button id="playBtn">▶️ 播放音乐</button>
+                <button id="pauseBtn">⏸️ 暂停</button>
+                <button id="stopBtn">⏹️ 停止</button>
+            </div>
+
+            <div class="rhythm-badge">
+                <div class="status" style="flex:1">🎤 音量/嘴型: <span id="volumeVal">0%</span></div>
+                <div class="status" style="flex:1">🎸 节拍计数: <span id="beatCount">0</span></div>
+            </div>
+            <div class="status">
+                🎤 对口型：半透明唇形 &nbsp;|&nbsp; 🎸 左手按压光晕 + 右手弹拨光效（随音乐节拍）
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(){
+        // ---------- DOM 元素 ----------
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const imgUpload = document.getElementById('imageUpload');
+        const audioUpload = document.getElementById('audioUpload');
+        const setMouthBtn = document.getElementById('setMouthBtn');
+        const setLeftHandBtn = document.getElementById('setLeftHandBtn');
+        const setRightHandBtn = document.getElementById('setRightHandBtn');
+        const hasGuitarCheck = document.getElementById('hasGuitarCheckbox');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const volumeSpan = document.getElementById('volumeVal');
+        const beatSpan = document.getElementById('beatCount');
+        const generateTestAudioBtn = document.getElementById('generateTestAudioBtn');
+        
+        // ---------- 图片数据 ----------
+        let userImage = null;
+        let imgLoaded = false;
+        let imgNaturalWidth = 0, imgNaturalHeight = 0;
+        let drawRect = { x: 0, y: 0, w: 0, h: 0 };
+        
+        // 三个标记点
+        let mouthPoint = { x: 400, y: 300, set: false };
+        let leftHandPoint = { x: 600, y: 380, set: false };
+        let rightHandPoint = { x: 680, y: 420, set: false };
+        
+        // 拖拽状态
+        let dragTarget = null;
+        let dragActive = false;
+        
+        // 音频相关
+        let animationId = null;
+        let isPlaying = false;
+        let audioContext = null;
+        let audioBuffer = null;
+        let sourceNode = null;
+        let analyserNode = null;
+        let gainNode = null;
+        let startTime = 0;
+        let pauseOffset = 0;
+        let isAudioReady = false;
+        
+        // 音量/节拍
+        let currentVolume = 0;
+        let lastBeatTime = 0;
+        let beatCooldown = 280;
+        let beatFlash = 0;
+        let leftHandFlash = 0;
+        let beatCounter = 0;
+        
+        // 自然动作偏移
+        let bodySwayX = 0, bodySwayY = 0, bodyRotate = 0;
+        
+        // 当前设置模式
+        let settingMode = null;
+        
+        // ---------- 图片自适应 ----------
+        function updateDrawRect() {
+            if (!imgLoaded || !userImage) return;
+            const cw = canvas.width, ch = canvas.height;
+            const imgW = imgNaturalWidth, imgH = imgNaturalHeight;
+            const scale = Math.min(cw / imgW, ch / imgH);
+            const dw = imgW * scale;
+            const dh = imgH * scale;
+            drawRect = {
+                x: (cw - dw) / 2,
+                y: (ch - dh) / 2,
+                w: dw,
+                h: dh
+            };
+        }
+        
+        function isPointInImage(canvasX, canvasY) {
+            if (!imgLoaded) return false;
+            return (canvasX >= drawRect.x && canvasX <= drawRect.x + drawRect.w &&
+                    canvasY >= drawRect.y && canvasY <= drawRect.y + drawRect.h);
+        }
+        
+        function clampPointToImageRect(point) {
+            if (!imgLoaded) return;
+            point.x = Math.min(Math.max(point.x, drawRect.x), drawRect.x + drawRect.w);
+            point.y = Math.min(Math.max(point.y, drawRect.y), drawRect.y + drawRect.h);
+        }
+        
+        // 初始化默认标记点（自动设置在图片合理区域）
+        function initDefaultPoints() {
+            if (!imgLoaded) return;
+            mouthPoint = {
+                x: drawRect.x + drawRect.w * 0.5,
+                y: drawRect.y + drawRect.h * 0.55,
+                set: true
+            };
+            leftHandPoint = {
+                x: drawRect.x + drawRect.w * 0.68,
+                y: drawRect.y + drawRect.h * 0.65,
+                set: true
+            };
+            rightHandPoint = {
+                x: drawRect.x + drawRect.w * 0.82,
+                y: drawRect.y + drawRect.h * 0.72,
+                set: true
+            };
+            clampPointToImageRect(mouthPoint);
+            clampPointToImageRect(leftHandPoint);
+            clampPointToImageRect(rightHandPoint);
+        }
+        
+        function applyNaturalOffset(x, y) {
+            const dx = x - canvas.width/2;
+            const dy = y - canvas.height/2;
+            const cos = Math.cos(bodyRotate);
+            const sin = Math.sin(bodyRotate);
+            let newX = canvas.width/2 + dx * cos - dy * sin + bodySwayX;
+            let newY = canvas.height/2 + dx * sin + dy * cos + bodySwayY;
+            return { x: newX, y: newY };
+        }
+        
+        // ---------- 绘制 ----------
+        function drawImageWithAnimations() {
+            if (!imgLoaded || !userImage) {
+                ctx.fillStyle = "#1a2a2f";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#ffefc0";
+                ctx.font = "bold 16px 'Segoe UI'";
+                ctx.textAlign = "center";
+                ctx.fillText("⬆️ 请先上传人物图片", canvas.width/2, canvas.height/2);
+                return;
+            }
+            
+            const t = performance.now() / 1000;
+            bodySwayX = Math.sin(t * 0.8) * 2.5;
+            bodySwayY = Math.sin(t * 1.2) * 1.8;
+            bodyRotate = Math.sin(t * 0.5) * 0.008;
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(userImage, drawRect.x, drawRect.y, drawRect.w, drawRect.h);
+            
+            ctx.save();
+            ctx.translate(canvas.width/2 + bodySwayX, canvas.height/2 + bodySwayY);
+            ctx.rotate(bodyRotate);
+            ctx.translate(-canvas.width/2, -canvas.height/2);
+            
+            // 1. 对口型
+            if (mouthPoint.set && isPointInImage(mouthPoint.x, mouthPoint.y)) {
+                let mouthOpen = Math.min(1.0, currentVolume * 1.6);
+                let mouthHeight = 14 + mouthOpen * 28;
+                let mouthWidth = 32 + mouthOpen * 14;
+                let pos = applyNaturalOffset(mouthPoint.x, mouthPoint.y);
+                ctx.beginPath();
+                ctx.ellipse(pos.x, pos.y, mouthWidth/2, mouthHeight/2, 0, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(220, 100, 80, ${0.3 + mouthOpen * 0.3})`;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(pos.x, pos.y+2, mouthWidth*0.65, mouthHeight*0.7, 0, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(80, 35, 25, ${0.4 + mouthOpen * 0.3})`;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(pos.x, pos.y+mouthHeight*0.25, mouthWidth*0.7, mouthHeight*0.2, 0, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 180, 140, 0.5)`;
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(pos.x-4, pos.y-3, 3, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(255, 240, 210, 0.8)`;
+                ctx.fill();
+            }
+            
+            const hasGuitar = hasGuitarCheck.checked;
+            
+            // 右手拨弦特效
+            if (rightHandPoint.set && isPointInImage(rightHandPoint.x, rightHandPoint.y)) {
+                let rp = applyNaturalOffset(rightHandPoint.x, rightHandPoint.y);
+                if (hasGuitar && beatFlash > 0.02) {
+                    let intensity = beatFlash;
+                    ctx.beginPath();
+                    ctx.arc(rp.x, rp.y, 18 * intensity, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(255, 200, 70, ${0.6 * intensity})`;
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.arc(rp.x, rp.y, 10 * intensity, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(255, 140, 30, ${0.8 * intensity})`;
+                    ctx.fill();
+                    for(let i=0;i<3;i++){
+                        ctx.beginPath();
+                        ctx.ellipse(rp.x + (i-1)*8*intensity, rp.y-5*intensity, 12*intensity, 6*intensity, 0.5, 0, Math.PI*2);
+                        ctx.strokeStyle = `rgba(255, 220, 100, ${intensity*0.7})`;
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+                }
+                // 可拖拽标记
+                ctx.beginPath();
+                ctx.arc(rp.x, rp.y, 14, 0, Math.PI*2);
+                ctx.fillStyle = "#ffaa66cc";
+                ctx.fill();
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = "white";
+                ctx.font = "bold 18px sans-serif";
+                ctx.fillText("✋", rp.x-9, rp.y+7);
+            }
+            
+            // 左手按弦特效
+            if (leftHandPoint.set && isPointInImage(leftHandPoint.x, leftHandPoint.y)) {
+                let lp = applyNaturalOffset(leftHandPoint.x, leftHandPoint.y);
+                if (hasGuitar && leftHandFlash > 0.02) {
+                    let leftIntensity = leftHandFlash;
+                    ctx.beginPath();
+                    ctx.ellipse(lp.x, lp.y, 16 * leftIntensity, 12 * leftIntensity, 0, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(100, 200, 180, ${0.5 * leftIntensity})`;
+                    ctx.fill();
+                    ctx.beginPath();
+                    ctx.ellipse(lp.x-3, lp.y+2, 8 * leftIntensity, 6 * leftIntensity, 0, 0, Math.PI*2);
+                    ctx.fillStyle = `rgba(80, 220, 140, ${0.7 * leftIntensity})`;
+                    ctx.fill();
+                }
+                ctx.beginPath();
+                ctx.arc(lp.x, lp.y, 14, 0, Math.PI*2);
+                ctx.fillStyle = "#88ccffcc";
+                ctx.fill();
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = "white";
+                ctx.font = "bold 18px sans-serif";
+                ctx.fillText("🤚", lp.x-9, lp.y+7);
+            }
+            
+            // 嘴巴标记点
+            if (mouthPoint.set && isPointInImage(mouthPoint.x, mouthPoint.y)) {
+                let mp = applyNaturalOffset(mouthPoint.x, mouthPoint.y);
+                ctx.beginPath();
+                ctx.arc(mp.x, mp.y, 14, 0, Math.PI*2);
+                ctx.fillStyle = "#ff7799cc";
+                ctx.fill();
+                ctx.strokeStyle = "white";
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.fillStyle = "white";
+                ctx.font = "bold 18px sans-serif";
+                ctx.fillText("👄", mp.x-9, mp.y+7);
+            }
+            
+            // 提示文字
+            if (settingMode === 'mouth') {
+                ctx.fillStyle = "#ff8844ee";
+                ctx.font = "bold 14px system-ui";
+                ctx.fillText("👆 点击图片设置嘴巴位置（或直接拖拽已有图标）", 20, 45);
+            } else if (settingMode === 'leftHand') {
+                ctx.fillStyle = "#44ffaadd";
+                ctx.font = "bold 14px system-ui";
+                ctx.fillText("🎸 点击图片设置左手按弦位置", 20, 45);
+            } else if (settingMode === 'rightHand') {
+                ctx.fillStyle = "#ffaa44dd";
+                ctx.font = "bold 14px system-ui";
+                ctx.fillText("🎸 点击图片设置右手拨弦位置", 20, 45);
+            }
+            
+            ctx.restore();
+        }
+        
+        // ---------- 音频节拍检测 ----------
+        function updateAudioVolumeAndBeat() {
+            if(!isPlaying || !analyserNode || !audioContext) return;
+            const dataArray = new Uint8Array(analyserNode.frequencyBinCount);
+            analyserNode.getByteTimeDomainData(dataArray);
+            let maxSample = 0;
+            for(let i=0; i<dataArray.length; i++){
+                let v = (dataArray[i] - 128) / 128;
+                maxSample = Math.max(maxSample, Math.abs(v));
+            }
+            let rawVol = Math.min(1.0, maxSample * 1.5);
+            currentVolume = currentVolume * 0.7 + rawVol * 0.3;
+            volumeSpan.innerText = Math.floor(currentVolume*100)+"%";
+            
+            if(!window._volHistory) window._volHistory = [];
+            window._volHistory.push(rawVol);
+            if(window._volHistory.length > 25) window._volHistory.shift();
+            let avgVol = window._volHistory.reduce((a,b)=>a+b,0)/window._volHistory.length;
+            let threshold = avgVol * 1.25 + 0.1;
+            let now = Date.now();
+            if(rawVol > threshold && (now - lastBeatTime) > beatCooldown && rawVol > 0.16){
+                lastBeatTime = now;
+                beatFlash = 0.9;
+                leftHandFlash = 0.65;
+                beatCounter++;
+                beatSpan.innerText = beatCounter;
+            } else {
+                if(beatFlash > 0) beatFlash *= 0.85;
+                else beatFlash = 0;
+                if(leftHandFlash > 0) leftHandFlash *= 0.88;
+                else leftHandFlash = 0;
+            }
+        }
+        
+        function animationLoop() {
+            if(isPlaying && analyserNode){
+                updateAudioVolumeAndBeat();
+            } else {
+                if(!isPlaying) currentVolume = currentVolume * 0.96;
+                beatFlash *= 0.92;
+                leftHandFlash *= 0.94;
+            }
+            drawImageWithAnimations();
+            animationId = requestAnimationFrame(animationLoop);
+        }
+        
+        // ---------- 音频处理（增强MP3兼容 + 测试音乐生成）----------
+        async function initAudioContext() {
+            if(!audioContext){
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                analyserNode = audioContext.createAnalyser();
+                analyserNode.fftSize = 256;
+                gainNode = audioContext.createGain();
+                analyserNode.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+            }
+            if(audioContext.state === 'suspended'){
+                await audioContext.resume();
+            }
+        }
+        
+        // 生成测试音乐（节拍器风格，确保100%可用）
+        function generateTestMusic() {
+            const sampleRate = 44100;
+            const duration = 30; // 30秒
+            const numberOfChannels = 1;
+            const bufferLength = sampleRate * duration;
+            const buffer = audioContext.createBuffer(numberOfChannels, bufferLength, sampleRate);
+            const data = buffer.getChannelData(0);
+            const bpm = 120;
+            const beatInterval = 60 / bpm; // 秒每拍
+            const beatSamples = sampleRate * beatInterval;
+            
+            for (let i = 0; i < bufferLength; i++) {
+                // 节拍脉冲: 每拍一个尖锐鼓点 + 柔和背景
+                let t = i / sampleRate;
+                let beatPos = t / beatInterval;
+                let isBeat = Math.abs(beatPos - Math.round(beatPos)) < 0.02;
+                let value = 0;
+                if (isBeat) {
+                    // 鼓点冲击
+                    let env = Math.exp(- (i % beatSamples) / (sampleRate * 0.05));
+                    value = 0.5 * env * Math.sin(2 * Math.PI * 440 * t);
+                } else {
+                    // 柔和背景和弦
+                    value = 0.1 * Math.sin(2 * Math.PI * 220 * t) * Math.sin(2 * Math.PI * 2 * t);
+                }
+                // 避免削波
+                data[i] = Math.max(-0.8, Math.min(0.8, value));
+            }
+            return buffer;
+        }
+        
+        async function loadAudioFromFile(file) {
+            if(!file) return false;
+            try{
+                await initAudioContext();
+                const arrayBuffer = await file.arrayBuffer();
+                audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+                isAudioReady = true;
+                document.getElementById('statusMsg').innerHTML = "✅ 音乐加载成功！点击播放即可同步动画";
+                return true;
+            }catch(e){
+                console.error("音频解码错误:", e);
+                let errorMsg = "❌ 音乐解码失败。";
+                if (file.type === 'audio/mpeg') errorMsg += " 该MP3文件可能编码不标准。";
+                else errorMsg += " 请尝试转换为标准44.1kHz WAV/MP3。";
+                errorMsg += " 您也可以使用【生成测试音乐】功能体验。";
+                document.getElementById('statusMsg').innerHTML = errorMsg;
+                return false;
+            }
+        }
+        
+        function stopAudio() {
+            if(sourceNode){
+                try{ sourceNode.stop(); }catch(e){}
+                sourceNode = null;
+            }
+            isPlaying = false;
+            pauseOffset = 0;
+            startTime = 0;
+            currentVolume = 0;
+            beatFlash = 0;
+            leftHandFlash = 0;
+            beatCounter = 0;
+            beatSpan.innerText = "0";
+        }
+        
+        function pauseAudio() {
+            if(!isPlaying) return;
+            if(sourceNode && audioContext){
+                const elapsed = audioContext.currentTime - startTime + pauseOffset;
+                pauseOffset = elapsed;
+                sourceNode.stop();
+                sourceNode = null;
+                isPlaying = false;
+            }
+        }
+        
+        async function playAudio() {
+            if(!isAudioReady || !audioBuffer){
+                document.getElementById('statusMsg').innerHTML = "⚠️ 请先上传有效的音乐文件，或点击【生成测试音乐】";
+                return;
+            }
+            if(isPlaying) pauseAudio();
+            await initAudioContext();
+            if(audioContext.state === 'suspended') await audioContext.resume();
+            sourceNode = audioContext.createBufferSource();
+            sourceNode.buffer = audioBuffer;
+            sourceNode.connect(analyserNode);
+            startTime = audioContext.currentTime;
+            if(pauseOffset > 0) sourceNode.start(0, pauseOffset);
+            else sourceNode.start(0);
+            sourceNode.onended = () => {
+                isPlaying = false;
+                pauseOffset = 0;
+                startTime = 0;
+                document.getElementById('statusMsg').innerHTML = "🎵 播放结束";
+                currentVolume = 0;
+                beatFlash = 0;
+                leftHandFlash = 0;
+            };
+            isPlaying = true;
+            document.getElementById('statusMsg').innerHTML = "🎤 播放中 · 嘴巴对口型 + 左手按弦 + 右手弹拨 同步节拍";
+        }
+        
+        // 生成测试音乐并自动加载
+        async function useTestMusic() {
+            await initAudioContext();
+            audioBuffer = generateTestMusic();
+            isAudioReady = true;
+            document.getElementById('statusMsg').innerHTML = "✅ 测试音乐已生成（节拍器风格），点击播放即可体验动画效果！";
+        }
+        
+        // ---------- 图片上传与初始化 ----------
+        imgUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = new Image();
+                img.onload = () => {
+                    userImage = img;
+                    imgLoaded = true;
+                    imgNaturalWidth = img.width;
+                    imgNaturalHeight = img.height;
+                    updateDrawRect();
+                    initDefaultPoints();
+                    drawImageWithAnimations();
+                    document.getElementById('statusMsg').innerHTML = "图片已加载，标记点已自动生成，可直接拖拽微调！";
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+        
+        // ---------- 交互：拖拽（增大命中半径，更易拖动）----------
+        function getCanvasCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            let mouseX = (e.clientX - rect.left) * scaleX;
+            let mouseY = (e.clientY - rect.top) * scaleY;
+            mouseX = Math.min(Math.max(0, mouseX), canvas.width);
+            mouseY = Math.min(Math.max(0, mouseY), canvas.height);
+            return { x: mouseX, y: mouseY };
+        }
+        
+        function handleMouseDown(e) {
+            if(!imgLoaded) return;
+            const {x,y} = getCanvasCoords(e);
+            // 增大命中半径至25px，便于拖拽
+            const distMouth = mouthPoint.set ? Math.hypot(x - mouthPoint.x, y - mouthPoint.y) : 999;
+            const distLeft = leftHandPoint.set ? Math.hypot(x - leftHandPoint.x, y - leftHandPoint.y) : 999;
+            const distRight = rightHandPoint.set ? Math.hypot(x - rightHandPoint.x, y - rightHandPoint.y) : 999;
+            const minDist = Math.min(distMouth, distLeft, distRight);
+            if (minDist < 28) {
+                if(distMouth === minDist) dragTarget = 'mouth';
+                else if(distLeft === minDist) dragTarget = 'leftHand';
+                else dragTarget = 'rightHand';
+                dragActive = true;
+                e.preventDefault();
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+            // 手动设置模式
+            if(settingMode === 'mouth' && isPointInImage(x,y)) {
+                mouthPoint = { x, y, set: true };
+                clampPointToImageRect(mouthPoint);
+                drawImageWithAnimations();
+                settingMode = null;
+                setMouthBtn.classList.remove('active-mode');
+                document.getElementById('statusMsg').innerHTML = "✅ 嘴巴位置已设定";
+            } else if(settingMode === 'leftHand' && isPointInImage(x,y)) {
+                leftHandPoint = { x, y, set: true };
+                clampPointToImageRect(leftHandPoint);
+                drawImageWithAnimations();
+                settingMode = null;
+                setLeftHandBtn.classList.remove('active-mode');
+                document.getElementById('statusMsg').innerHTML = "✅ 左手位置已设定";
+            } else if(settingMode === 'rightHand' && isPointInImage(x,y)) {
+                rightHandPoint = { x, y, set: true };
+                clampPointToImageRect(rightHandPoint);
+                drawImageWithAnimations();
+                settingMode = null;
+                setRightHandBtn.classList.remove('active-mode');
+                document.getElementById('statusMsg').innerHTML = "✅ 右手位置已设定";
+            }
+        }
+        
+        function handleMouseMove(e) {
+            if(!dragActive || !dragTarget) return;
+            const {x,y} = getCanvasCoords(e);
+            if (!isPointInImage(x,y)) return;
+            if(dragTarget === 'mouth') {
+                mouthPoint.x = x; mouthPoint.y = y;
+                clampPointToImageRect(mouthPoint);
+                drawImageWithAnimations();
+            } else if(dragTarget === 'leftHand') {
+                leftHandPoint.x = x; leftHandPoint.y = y;
+                clampPointToImageRect(leftHandPoint);
+                drawImageWithAnimations();
+            } else if(dragTarget === 'rightHand') {
+                rightHandPoint.x = x; rightHandPoint.y = y;
+                clampPointToImageRect(rightHandPoint);
+                drawImageWithAnimations();
+            }
+        }
+        
+        function handleMouseUp() {
+            if(dragActive) {
+                dragActive = false;
+                dragTarget = null;
+                canvas.style.cursor = 'grab';
+            }
+        }
+        
+        canvas.addEventListener('mousedown', handleMouseDown);
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        canvas.style.cursor = 'grab';
+        
+        setMouthBtn.addEventListener('click', () => {
+            if(!imgLoaded) { alert("请先上传图片"); return; }
+            settingMode = 'mouth';
+            setLeftHandBtn.classList.remove('active-mode');
+            setRightHandBtn.classList.remove('active-mode');
+            setMouthBtn.classList.add('active-mode');
+            document.getElementById('statusMsg').innerHTML = "👄 模式: 点击图片上人物嘴巴区域，或直接拖拽已有标记";
+        });
+        setLeftHandBtn.addEventListener('click', () => {
+            if(!imgLoaded) { alert("请先上传图片"); return; }
+            settingMode = 'leftHand';
+            setMouthBtn.classList.remove('active-mode');
+            setRightHandBtn.classList.remove('active-mode');
+            setLeftHandBtn.classList.add('active-mode');
+            document.getElementById('statusMsg').innerHTML = "🎸 左手模式: 点击图片上左手按弦位置";
+        });
+        setRightHandBtn.addEventListener('click', () => {
+            if(!imgLoaded) { alert("请先上传图片"); return; }
+            settingMode = 'rightHand';
+            setMouthBtn.classList.remove('active-mode');
+            setLeftHandBtn.classList.remove('active-mode');
+            setRightHandBtn.classList.add('active-mode');
+            document.getElementById('statusMsg').innerHTML = "🎸 右手模式: 点击图片上右手拨弦位置";
+        });
+        
+        audioUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) loadAudioFromFile(file);
+        });
+        generateTestAudioBtn.addEventListener('click', async () => {
+            await useTestMusic();
+        });
+        playBtn.addEventListener('click', playAudio);
+        pauseBtn.addEventListener('click', pauseAudio);
+        stopBtn.addEventListener('click', () => { stopAudio(); drawImageWithAnimations(); });
+        
+        animationLoop();
+        drawImageWithAnimations();
+        
+        // 页面点击激活音频上下文
+        document.body.addEventListener('click', () => {
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }, { once: true });
+    })();
+</script>
+</body>
+</html>
